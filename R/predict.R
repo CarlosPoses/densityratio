@@ -23,15 +23,20 @@ predict.ulsif <- function(object, newdata = NULL, sigma = c("sigmaopt", "all"), 
   newlambda <- check.lambda.predict(object, lambda)
   newdata <- check.newdata(object, newdata)
 
-  alpha   <- extract.alpha(object, newsigma, newlambda)
-  nlambda <- dim(alpha)[2]
-  nsigma  <- dim(alpha)[3]
-  dratio  <- array(0, c(nrow(newdata), nlambda, nsigma))
+  alpha     <- extract.alpha(object, newsigma, newlambda)
+  nsigma    <- length(newsigma)
+  nlambda   <- length(newlambda)
+  dratio    <- array(0, c(nrow(newdata), nlambda, nsigma))
+  intercept <- nrow(object$alpha) > nrow(object$centers)
 
   for (i in 1:nsigma) {
-    K <- distance(newdata, object$centers) |> kernel_gaussian(newsigma[i])
+    if (intercept) {
+      K <- cbind(0, distance(newdata, object$centers)) |> kernel_gaussian(newsigma[i])
+    } else {
+      K <- distance(newdata, object$centers) |> kernel_gaussian(newsigma[i])
+    }
     for (j in 1:nlambda) {
-      dratio[ , j, i] <- K %*% alpha[, j, i]
+      dratio[ , i, j] <- K %*% alpha[, i, j]
     }
   }
   dratio
@@ -74,7 +79,7 @@ extract.alpha <- function(object, sigma, lambda) {
     if (all(sigma %in% object$sigma) & all(lambda %in% object$lambda)) {
       which_sigma <- which(object$sigma %in% sigma)
       which_lambda <- which(object$lambda %in% lambda)
-      alpha <- object$alpha[ , which_lambda, which_sigma, drop = FALSE]
+      alpha <- object$alpha[ , which_sigma, which_lambda, drop = FALSE]
     } else {
       alpha <- ulsif(object$df_numerator, object$df_denominator, sigma = sigma,
                      lambda = lambda, centers = object$centers, progressbar = FALSE)$alpha
